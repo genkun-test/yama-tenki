@@ -40,12 +40,17 @@ h1{font-size:20px;margin:0}
 .pin.dim{opacity:.55}
 .pin i{font-style:normal;font-size:20px}
 #here{position:absolute;right:26px;margin-top:10px;z-index:500;background:var(--card);border:2px solid var(--acc);border-radius:999px;padding:6px 14px;font:inherit;font-size:15px;font-weight:700;color:var(--acc);box-shadow:0 1px 4px #0005}
+#eta{margin:6px 16px;padding:10px 14px;border-radius:12px;background:#e1ecfb;color:#123a73;font-weight:700;font-size:17px}
+#eta small{display:block;font-weight:400;font-size:14px}
+.row .tm s{color:var(--sub)}
+.row .tm b{color:#1a5fc4;font-size:16px}
 footer{padding:0 16px 24px;color:var(--sub);font-size:13px}
 </style>
 </head>
 <body>
 <header><h1 id="ttl">山の天気マップ</h1><div id="stamp">読みこみ中…</div></header>
 <div id="days"></div>
+<div id="eta" hidden></div>
 <div id="verdict" class="ok" hidden></div>
 <button id="here" type="button">◎ 現在地</button>
 <div id="map"></div>
@@ -84,12 +89,44 @@ $('here').onclick=()=>{
       if(!meDot){meRing=L.circle(ll,{radius:g.coords.accuracy,color:'#1a73e8',weight:1,fillOpacity:.12}).addTo(map);
         meDot=L.circleMarker(ll,{radius:9,color:'#fff',weight:3,fillColor:'#1a73e8',fillOpacity:1}).addTo(map)}
       else{meDot.setLatLng(ll);meRing.setLatLng(ll).setRadius(g.coords.accuracy)}
-      meDot.bringToFront();
+      meDot.bringToFront();updateEta(ll);
       if(follow){map.setView(ll,Math.max(map.getZoom(),14));follow=false}
       $('here').textContent='◎ 現在地'},
     e=>{$('here').textContent=e.code===1?'現在地の許可がオフです（設定で許可）':'◎ 現在地を取れません・もう一度';delete $('here').dataset.on},
     {enableHighAccuracy:true,maximumAge:30000,timeout:60000})}
 };
+
+// ---- 現在地から「予定との差」を出す
+const SIM=(new URLSearchParams(location.search).get('sim')||'').split(','); // 確認用 ?sim=緯度,経度,2026-09-07T08:00
+const NOW=()=>SIM[2]?new Date(SIM[2]+':00+09:00'):new Date();
+const R=P.route,rad=Math.PI/180;
+const mtr=(a,b)=>{const x=(b[1]-a[1])*rad*Math.cos((a[0]+b[0])/2*rad),y=(b[0]-a[0])*rad;return Math.hypot(x,y)*6371000};
+const cum=[0];for(let i=1;i<R.length;i++)cum[i]=cum[i-1]+mtr(R[i-1],R[i]);
+function proj(ll,a,b){let best={d:1e12,s:0};
+  for(let i=Math.max(0,a);i<Math.min(R.length-1,b);i++){const A=R[i],B=R[i+1],kx=Math.cos(A[0]*rad);
+    const vx=(B[1]-A[1])*kx,vy=B[0]-A[0],wx=(ll[1]-A[1])*kx,wy=ll[0]-A[0],n=vx*vx+vy*vy;
+    const t=n?Math.max(0,Math.min(1,(wx*vx+wy*vy)/n)):0,q=[A[0]+(B[0]-A[0])*t,A[1]+(B[1]-A[1])*t],d=mtr(ll,q);
+    if(d<best.d)best={d,s:cum[i]+(cum[i+1]-cum[i])*t,i}}
+  return best}
+// 各チェックポイントのルート上の位置（行って戻る区間があるので前から順に探す）
+let pi=0;P.all.forEach(c=>{const r=proj([c.lat,c.lon],pi,pi+120);c.s=r.s;pi=r.i||pi;c.ri=pi;c.min=c.h*60+c.m});
+let delay=null,etaNote='';
+function updateEta(ll){
+  const now=NOW(),day=[...Array(P.days).keys()].map(d=>d+1).find(d=>iso(dateOf(d))===iso(now));
+  const box=$('eta');delay=null;
+  if(!day){box.hidden=true;return}
+  const cs=P.all.filter(c=>c.day===day);if(cs.length<2){box.hidden=true;return}
+  const r=proj(ll,cs[0].ri-2,cs[cs.length-1].ri+2);box.hidden=false;
+  if(r.d>400){box.innerHTML='計画のルートから離れています<small>約'+Math.round(r.d/10)*10+'m。到着時刻の計算は止めています</small>';render();return}
+  let k=cs.findIndex(c=>c.s>r.s);if(k<0)k=cs.length-1;if(k===0)k=1;
+  const a=cs[k-1],b=cs[k],f=b.s>a.s?Math.max(0,Math.min(1,(r.s-a.s)/(b.s-a.s))):1;
+  const planned=a.min+(b.min-a.min)*f,cur=now.getHours()*60+now.getMinutes();
+  delay=Math.round((cur-planned)/5)*5;
+  const ab=Math.abs(delay),txt=ab<10?'ほぼ予定どおり':(ab>=60?Math.floor(ab/60)+'時間'+(ab%60?ab%60+'分':''):ab+'分')+(delay>0?'おくれ':'早い');
+  box.innerHTML='予定より '+txt+'<small>いま '+a.n+' → '+b.n+' のあいだ。下の到着時刻と天気を、この差で計算し直しています</small>';
+  etaDay=day;etaFrom=planned;render()}
+let etaDay=0,etaFrom=0;
+const hm=t=>Math.floor(t/60)+':'+String(Math.round(t%60)).padStart(2,'0');
 
 // ---- 天気の値を取り出す
 function at(i,day,h){
@@ -132,11 +169,12 @@ function render(){
     m.bindPopup(`<b>${p.n}</b> ${p.alt}m<br>${p.day}日目 ${p.h}:${String(p.m).padStart(2,'0')} 予定`);pins.push(m)});
   // 一覧（予定の通過時刻の天気）
   const list=$('list');list.innerHTML='';
-  P.key.forEach((p,i)=>{if(p.day!==selDay)return;const o=at(i,selDay,p.h),r=document.createElement('div');
+  P.key.forEach((p,i)=>{if(p.day!==selDay)return;const pm=p.h*60+p.m,sh=delay!=null&&etaDay===selDay&&pm>=etaFrom&&Math.abs(delay)>=10,em=Math.max(0,Math.min(1439,pm+(sh?delay:0)));
+    const o=at(i,selDay,Math.floor(em/60)),r=document.createElement('div');const tmH=sh?`<s>${hm(pm)}</s> → <b>${hm(em)}ごろ</b>`:`${hm(pm)}ごろ`;
     if(!o){r.className='row';r.innerHTML=`<span class="ic">・</span><span class="nm">${p.n}</span><span class="tm">${p.h}:${String(p.m).padStart(2,'0')}</span><span class="vals">予報なし</span>`}
     else{const c=CODE(o.code),wc=o.wind>=15?'d':o.wind>=10?'w':'',rc=o.rain>=5?'d':o.rain>=1?'w':'';
       r.className='row '+LV[o.lv];
-      r.innerHTML=`<span class="ic">${c[0]}</span><span class="nm">${p.sleep?'⛺ ':''}${p.n} <small>${p.alt}m</small></span><span class="tm">${p.h}:${String(p.m).padStart(2,'0')}ごろ</span>
+      r.innerHTML=`<span class="ic">${c[0]}</span><span class="nm">${p.sleep?'⛺ ':''}${p.n} <small>${p.alt}m</small></span><span class="tm">${tmH}</span>
       <span class="vals">${c[1]}　${Math.round(o.t)}℃（体感${Math.round(o.feel)}℃）　風 <b class="${wc}">${Math.round(o.wind)}m/s</b>　雨 <b class="${rc}">${o.rain.toFixed(1)}mm</b>${o.pop!=null?' '+o.pop+'%':''}</span>`}
     list.appendChild(r)});
 }
@@ -160,6 +198,7 @@ async function load(){
   render();
 }
 render();focusDay();load();
+if(SIM[1]){const ll=[+SIM[0],+SIM[1]];L.circleMarker(ll,{radius:9,color:'#fff',weight:3,fillColor:'#1a73e8',fillOpacity:1}).addTo(map);for(let d=1;d<=P.days;d++)if(iso(dateOf(d))===iso(NOW()))selDay=d;updateEta(ll);focusDay()}
 setTimeout(()=>{map.invalidateSize();focusDay()},300);
 setInterval(load,30*60e3); // 開きっぱなしでも30分ごとに更新
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
