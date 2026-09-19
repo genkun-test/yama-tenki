@@ -39,6 +39,7 @@ h1{font-size:20px;margin:0}
 .pin.warn{border-color:var(--warn);background:var(--warnbg);color:#1d2b2a}.pin.bad{border-color:var(--bad);background:var(--badbg);color:#1d2b2a}
 .pin.dim{opacity:.55}
 .pin i{font-style:normal;font-size:20px}
+#here{position:absolute;right:26px;margin-top:10px;z-index:500;background:var(--card);border:2px solid var(--acc);border-radius:999px;padding:6px 14px;font:inherit;font-size:15px;font-weight:700;color:var(--acc);box-shadow:0 1px 4px #0005}
 footer{padding:0 16px 24px;color:var(--sub);font-size:13px}
 </style>
 </head>
@@ -46,6 +47,7 @@ footer{padding:0 16px 24px;color:var(--sub);font-size:13px}
 <header><h1 id="ttl">山の天気マップ</h1><div id="stamp">読みこみ中…</div></header>
 <div id="days"></div>
 <div id="verdict" class="ok" hidden></div>
+<button id="here" type="button">◎ 現在地</button>
 <div id="map"></div>
 <div id="timebox"><output id="hv">9時</output><input id="hour" type="range" min="0" max="23" value="9" aria-label="時刻"></div>
 <div id="list"></div>
@@ -70,6 +72,24 @@ const map=L.map('map',{zoomControl:true,attributionControl:false});
 L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:16,minZoom:8}).addTo(map);
 const line=L.polyline(P.route,{color:'#c8372d',weight:4,opacity:.85}).addTo(map);
 map.fitBounds(line.getBounds(),{padding:[20,20]});
+
+// ---- 現在地（GPS は電波が無くても動く）
+let meDot=null,meRing=null,follow=false;
+$('here').onclick=()=>{
+  if(!navigator.geolocation){$('here').textContent='この端末は現在地に対応していません';return}
+  follow=true;$('here').textContent='◎ 現在地を探しています…';
+  if(meDot){map.setView(meDot.getLatLng(),Math.max(map.getZoom(),14));$('here').textContent='◎ 現在地'}
+  if(!$('here').dataset.on){$('here').dataset.on=1;
+    navigator.geolocation.watchPosition(g=>{const ll=[g.coords.latitude,g.coords.longitude];
+      if(!meDot){meRing=L.circle(ll,{radius:g.coords.accuracy,color:'#1a73e8',weight:1,fillOpacity:.12}).addTo(map);
+        meDot=L.circleMarker(ll,{radius:9,color:'#fff',weight:3,fillColor:'#1a73e8',fillOpacity:1}).addTo(map)}
+      else{meDot.setLatLng(ll);meRing.setLatLng(ll).setRadius(g.coords.accuracy)}
+      meDot.bringToFront();
+      if(follow){map.setView(ll,Math.max(map.getZoom(),14));follow=false}
+      $('here').textContent='◎ 現在地'},
+    e=>{$('here').textContent=e.code===1?'現在地の許可がオフです（設定で許可）':'◎ 現在地を取れません・もう一度';delete $('here').dataset.on},
+    {enableHighAccuracy:true,maximumAge:30000,timeout:60000})}
+};
 
 // ---- 天気の値を取り出す
 function at(i,day,h){
