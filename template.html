@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>山の天気マップ</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#eef3f1;--card:#fff;--ink:#1d2b2a;--sub:#5b6d6a;--line:#d5dfdc;--acc:#1f6f5c;
+--ok:#2e8b57;--warn:#d98a00;--bad:#c8372d;--okbg:#e3f3ea;--warnbg:#fdf0d5;--badbg:#fbe1de}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Yu Gothic UI","Noto Sans JP",sans-serif;font-size:17px;line-height:1.5}
+header{padding:12px 16px 6px}
+h1{font-size:20px;margin:0}
+#stamp{font-size:14px;color:var(--sub)}
+#stamp.off{color:var(--bad);font-weight:700}
+#days{display:flex;gap:6px;padding:6px 16px;overflow-x:auto}
+#days button{flex:1 0 auto;min-width:64px;border:2px solid var(--line);background:var(--card);border-radius:12px;padding:6px 8px;font:inherit;font-size:14px;color:var(--ink);line-height:1.25}
+#days button b{display:block;font-size:22px}
+#days button.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+#days button.ok{background:var(--okbg)}#days button.warn{background:var(--warnbg)}#days button.bad{background:var(--badbg)}
+#verdict{margin:6px 16px;padding:10px 14px;border-radius:12px;font-weight:700;font-size:18px}
+#verdict small{display:block;font-weight:400;font-size:15px}
+.ok{background:var(--okbg);color:#14532d}.warn{background:var(--warnbg);color:#7a4b00}.bad{background:var(--badbg);color:#7f1d1d}
+#map{height:52vh;min-height:300px;margin:0 16px;border-radius:12px;border:1px solid var(--line);z-index:0}
+#timebox{margin:8px 16px;display:flex;align-items:center;gap:10px}
+#timebox output{font-weight:700;font-size:20px;min-width:3.2em;font-variant-numeric:tabular-nums}
+#hour{flex:1;height:32px;accent-color:var(--acc)}
+#list{margin:8px 16px 24px;display:flex;flex-direction:column;gap:8px}
+.row{background:var(--card);border:1px solid var(--line);border-left:8px solid var(--ok);border-radius:12px;padding:8px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;align-items:center}
+.row.warn{border-left-color:var(--warn);background:var(--card);color:var(--ink)}.row.bad{border-left-color:var(--bad);background:var(--card);color:var(--ink)}
+.row .ic{font-size:34px;grid-row:span 2}
+.row .nm{font-weight:700}
+.row .tm{color:var(--sub);font-size:14px;text-align:right}
+.row .vals{grid-column:2/4;font-variant-numeric:tabular-nums;font-size:16px}
+.row .vals b.w{color:var(--warn)}.row .vals b.d{color:var(--bad)}
+.pin{background:var(--card);border:2px solid var(--ok);border-radius:10px;padding:1px 5px;font-size:13px;font-weight:700;white-space:nowrap;text-align:center;line-height:1.2;box-shadow:0 1px 4px #0005;color:#1d2b2a;transform:translate(-50%,-100%);display:inline-block}
+.pin.warn{border-color:var(--warn);background:var(--warnbg);color:#1d2b2a}.pin.bad{border-color:var(--bad);background:var(--badbg);color:#1d2b2a}
+.pin.dim{opacity:.55}
+.pin i{font-style:normal;font-size:20px}
+footer{padding:0 16px 24px;color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+<header><h1 id="ttl">山の天気マップ</h1><div id="stamp">読みこみ中…</div></header>
+<div id="days"></div>
+<div id="verdict" class="ok" hidden></div>
+<div id="map"></div>
+<div id="timebox"><output id="hv">9時</output><input id="hour" type="range" min="0" max="23" value="9" aria-label="時刻"></div>
+<div id="list"></div>
+<footer>天気は Open-Meteo の予報（標高補正つき）。風は標高2300m以上の地点では上空約3000mの風を表示。山の天気は急変します。数字は目安で、現地の空と小屋の情報を優先してください。地図: 国土地理院</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const P=/*PLAN*/null;
+const $=id=>document.getElementById(id);
+const WK='日月火水木金土';
+const dateOf=d=>{const t=new Date(P.start+'T00:00:00+09:00');t.setDate(t.getDate()+d-1);return t};
+const iso=t=>new Date(t.getTime()+9*3600e3).toISOString().slice(0,10);
+const todayIso=iso(new Date());
+const CODE=c=>c===0?['☀️','快晴']:c===1?['🌤️','晴れ']:c===2?['⛅','晴れ時々くもり']:c===3?['☁️','くもり']:c<=48?['🌫️','霧']:c<=57?['🌦️','霧雨']:c<=67?['🌧️','雨']:c<=77?['🌨️','雪']:c<=82?['🌧️','にわか雨']:c<=86?['🌨️','にわか雪']:['⛈️','雷雨'];
+let WX=null,selDay=1,pins=[];
+
+$('ttl').textContent=P.area+' の天気';
+// 今日が山行中ならその日、そうでなければ1日目
+for(let d=1;d<=P.days;d++)if(iso(dateOf(d))===todayIso){selDay=d;$('hour').value=Math.min(23,new Date().getHours())}
+
+// ---- 地図
+const map=L.map('map',{zoomControl:true,attributionControl:false});
+L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:16,minZoom:8}).addTo(map);
+const line=L.polyline(P.route,{color:'#c8372d',weight:4,opacity:.85}).addTo(map);
+map.fitBounds(line.getBounds(),{padding:[20,20]});
+
+// ---- 天気の値を取り出す
+function at(i,day,h){
+  if(!WX||!WX[i])return null;
+  const H=WX[i].hourly,k=H.time.indexOf(iso(dateOf(day))+'T'+String(h).padStart(2,'0')+':00');
+  if(k<0||H.temperature_2m[k]==null)return null;
+  const hi=P.key[i].alt>=2300&&H.wind_speed_700hPa[k]!=null;
+  const wind=hi?H.wind_speed_700hPa[k]:H.wind_speed_10m[k];
+  const o={t:H.temperature_2m[k],feel:H.apparent_temperature[k],code:H.weather_code[k],rain:H.precipitation[k]||0,pop:H.precipitation_probability[k],wind:wind,gust:H.wind_gusts_10m[k]};
+  o.lv=(o.wind>=15||o.rain>=5||o.code>=95)?2:(o.wind>=10||o.rain>=1||o.feel<=0)?1:0;
+  return o;
+}
+const LV=['ok','warn','bad'];
+function dayLevel(day){
+  let lv=-1,why=new Set();
+  P.key.forEach((p,i)=>{if(p.day!==day)return;for(let h=4;h<=17;h++){const o=at(i,day,h);if(!o)continue;lv=Math.max(lv,o.lv);
+    if(o.code>=95)why.add('雷');if(o.wind>=15)why.add('強風');else if(o.wind>=10)why.add('風やや強い');
+    if(o.rain>=5)why.add('強い雨');else if(o.rain>=1)why.add('雨');if(o.feel<=0)why.add('体感0℃以下')}});
+  return{lv,why:[...why]};
+}
+
+// ---- 描画
+function render(){
+  const h=+$('hour').value;$('hv').textContent=h+'時';
+  // 日付タブ
+  $('days').innerHTML='';
+  for(let d=1;d<=P.days;d++){const t=dateOf(d),b=document.createElement('button'),L_=dayLevel(d);
+    b.className=(L_.lv>=0?LV[L_.lv]:'')+(d===selDay?' sel':'');
+    b.innerHTML=`${d}日目<b>${t.getMonth()+1}/${t.getDate()}</b>${WK[t.getDay()]}${iso(t)===todayIso?'・今日':''}`;
+    b.onclick=()=>{selDay=d;render();focusDay()};$('days').appendChild(b)}
+  // ひとこと判定
+  const v=$('verdict'),dl=dayLevel(selDay);v.hidden=false;
+  if(dl.lv<0){v.className='warn';v.innerHTML='この日の予報はまだ出ていません<small>予報は16日先まで。近づくと表示されます</small>'}
+  else{v.className=LV[dl.lv];v.innerHTML=['おだやかな見込み','注意して行動','荒れる見込み・無理しない'][dl.lv]+`<small>${dl.why.join('・')||'日中（4〜17時）に大きな崩れなし'}</small>`}
+  // 地図のピン
+  pins.forEach(m=>m.remove());pins=[];
+  P.key.forEach((p,i)=>{const o=at(i,selDay,h),c=o?CODE(o.code):['・',''];
+    const html=`<span class="pin ${o?LV[o.lv]:''} ${p.day!==selDay?'dim':''}"><i>${c[0]}</i><br>${o?Math.round(o.t)+'℃ '+Math.round(o.wind)+'m':'−'}</span>`;
+    const m=L.marker([p.lat,p.lon],{icon:L.divIcon({html,className:'',iconSize:[0,0]}),zIndexOffset:p.day===selDay?1000:0}).addTo(map);
+    m.bindPopup(`<b>${p.n}</b> ${p.alt}m<br>${p.day}日目 ${p.h}:${String(p.m).padStart(2,'0')} 予定`);pins.push(m)});
+  // 一覧（予定の通過時刻の天気）
+  const list=$('list');list.innerHTML='';
+  P.key.forEach((p,i)=>{if(p.day!==selDay)return;const o=at(i,selDay,p.h),r=document.createElement('div');
+    if(!o){r.className='row';r.innerHTML=`<span class="ic">・</span><span class="nm">${p.n}</span><span class="tm">${p.h}:${String(p.m).padStart(2,'0')}</span><span class="vals">予報なし</span>`}
+    else{const c=CODE(o.code),wc=o.wind>=15?'d':o.wind>=10?'w':'',rc=o.rain>=5?'d':o.rain>=1?'w':'';
+      r.className='row '+LV[o.lv];
+      r.innerHTML=`<span class="ic">${c[0]}</span><span class="nm">${p.sleep?'⛺ ':''}${p.n} <small>${p.alt}m</small></span><span class="tm">${p.h}:${String(p.m).padStart(2,'0')}ごろ</span>
+      <span class="vals">${c[1]}　${Math.round(o.t)}℃（体感${Math.round(o.feel)}℃）　風 <b class="${wc}">${Math.round(o.wind)}m/s</b>　雨 <b class="${rc}">${o.rain.toFixed(1)}mm</b>${o.pop!=null?' '+o.pop+'%':''}</span>`}
+    list.appendChild(r)});
+}
+function focusDay(){const pts=P.all.filter(p=>p.day===selDay).map(p=>[p.lat,p.lon]);if(pts.length)map.fitBounds(pts,{padding:[40,40],maxZoom:13})}
+$('hour').oninput=render;
+
+// ---- 取得（失敗したら手元の保存分を出す）
+function stamp(t,off){const d=new Date(t);$('stamp').className=off?'off':'';
+  $('stamp').textContent=(off?'電波なし。':'')+`${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')} に取った予報`+(off?'を表示中':'')}
+async function load(){
+  let saved=null;try{saved=JSON.parse(localStorage.getItem('wx:'+P.start))}catch(e){}
+  if(saved){WX=saved.d;stamp(saved.t,false);render()}
+  const now=new Date(),lo=iso(new Date(now-85*864e5)),hi=iso(new Date(+now+15*864e5));
+  let s=P.start,e=iso(dateOf(P.days));if(s<lo)s=lo;if(e>hi)e=hi;
+  if(s>e){render();$('stamp').textContent='予報はまだ出ていません（16日前から表示）';return}
+  const q='https://api.open-meteo.com/v1/forecast?latitude='+P.key.map(p=>p.lat)+'&longitude='+P.key.map(p=>p.lon)+'&elevation='+P.key.map(p=>p.alt)+
+    '&hourly=temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,wind_speed_700hPa&wind_speed_unit=ms&timezone=Asia%2FTokyo&start_date='+s+'&end_date='+e;
+  try{const r=await fetch(q);if(!r.ok)throw 0;let d=await r.json();if(!Array.isArray(d))d=[d];WX=d;const t=Date.now();
+    try{localStorage.setItem('wx:'+P.start,JSON.stringify({t,d}))}catch(e){}
+    stamp(t,false)}catch(err){if(saved)stamp(saved.t,true);else $('stamp').textContent='電波がなく、予報を取れませんでした';}
+  render();
+}
+render();focusDay();load();
+setTimeout(()=>{map.invalidateSize();focusDay()},300);
+setInterval(load,30*60e3); // 開きっぱなしでも30分ごとに更新
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
