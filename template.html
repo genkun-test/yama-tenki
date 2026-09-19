@@ -82,7 +82,7 @@ map.fitBounds(line.getBounds(),{padding:[20,20]});
 let meDot=null,meRing=null,follow=false;
 $('here').onclick=()=>{
   if(!navigator.geolocation){$('here').textContent='この端末は現在地に対応していません';return}
-  follow=true;$('here').textContent='◎ 現在地を探しています…';
+  follow=true;$('here').textContent='◎ 探しています…';
   if(meDot){map.setView(meDot.getLatLng(),Math.max(map.getZoom(),14));$('here').textContent='◎ 現在地'}
   if(!$('here').dataset.on){$('here').dataset.on=1;
     navigator.geolocation.watchPosition(g=>{const ll=[g.coords.latitude,g.coords.longitude];
@@ -92,7 +92,8 @@ $('here').onclick=()=>{
       meDot.bringToFront();updateEta(ll);
       if(follow){map.setView(ll,Math.max(map.getZoom(),14));follow=false}
       $('here').textContent='◎ 現在地'},
-    e=>{$('here').textContent=e.code===1?'現在地の許可がオフです（設定で許可）':'◎ 現在地を取れません・もう一度';delete $('here').dataset.on},
+    e=>{$('here').textContent='◎ 現在地';delete $('here').dataset.on;const b=$('eta');b.hidden=false;
+      b.innerHTML=e.code===1?'現在地の許可がオフになっています<small>iPhone：「設定」→「アプリ」→ いま使っているブラウザ（Chrome / Safari）→「位置情報」→「このAppの使用中」を選び、このページを開き直して、もう一度「◎ 現在地」を押してください。Android：アドレス欄の左のマーク →「権限」→「位置情報」を許可</small>':'現在地を取れませんでした<small>空が見える場所で、もう一度「◎ 現在地」を押してください</small>'},
     {enableHighAccuracy:true,maximumAge:30000,timeout:60000})}
 };
 
