@@ -1,6 +1,6 @@
 """YAMAP の計画 URL から、山の天気マップ（静的 HTML）を作る。
 
-使い方: python -X utf8 build.py <YAMAP 計画URL> [出力先フォルダ(既定 dist)]
+使い方: python -X utf8 build.py <YAMAP 計画URL> [出力先フォルダ(既定 docs)]
 """
 import json
 import re
@@ -37,7 +37,7 @@ def pick_points(cps):
 
 def main():
     url = sys.argv[1]
-    out = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "dist"
+    out = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "docs"
     plan = fetch_plan(url)
     cps = [c for c in plan["checkpoints"] if c.get("coord")]
     start = datetime.fromtimestamp(plan["startAt"], JST).date()
