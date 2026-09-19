@@ -140,7 +140,7 @@ function render(){
       <span class="vals">${c[1]}　${Math.round(o.t)}℃（体感${Math.round(o.feel)}℃）　風 <b class="${wc}">${Math.round(o.wind)}m/s</b>　雨 <b class="${rc}">${o.rain.toFixed(1)}mm</b>${o.pop!=null?' '+o.pop+'%':''}</span>`}
     list.appendChild(r)});
 }
-function focusDay(){const pts=P.all.filter(p=>p.day===selDay).map(p=>[p.lat,p.lon]);if(pts.length)map.fitBounds(pts,{padding:[40,40],maxZoom:13})}
+function focusDay(){const pts=P.all.filter(p=>p.day===selDay).map(p=>[p.lat,p.lon]);if(pts.length)map.fitBounds(pts,{padding:[40,40],maxZoom:13,animate:false})}
 $('hour').oninput=render;
 
 // ---- 取得（失敗したら手元の保存分を出す）
