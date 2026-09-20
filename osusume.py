@@ -58,6 +58,7 @@ def slim(m, course, climbed):
         "lon": round(lon, 4),
         "pref": [PREF.get(p["name"], p["name"]) for p in m.get("prefectures", [])][:2],
         "season": m.get("climber_statistics"),
+        "img": None if climbed else (m.get("primary_image") or {}).get("small_url"),
         "climbed": climbed,
         "course": course and {
             "id": course["id"],
