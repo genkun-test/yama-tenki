@@ -1,10 +1,8 @@
-name: 計画を差し替える
+name: update-plan
 on:
+  schedule:
+    - cron: '17 * * * *'   # 毎時17分
   workflow_dispatch:
-    inputs:
-      url:
-        description: "YAMAP の計画URL（メール内の https://yamap.com/plans/code/...）"
-        required: true
 permissions:
   contents: write
 jobs:
@@ -12,19 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: build
+      - name: 最新の計画URLを受け取って作り直す
         env:
-          PLAN_URL: ${{ inputs.url }}
+          PLAN_SRC: ${{ secrets.PLAN_SRC }}
         run: |
-          case "$PLAN_URL" in https://yamap.com/plans/*) ;; *) echo "YAMAP の計画URLではありません"; exit 1;; esac
-          python -X utf8 build.py "$PLAN_URL"
-      - name: commit
-        run: |
+          if [ -z "$PLAN_SRC" ]; then echo "PLAN_SRC が未設定"; exit 0; fi
+          URL=$(curl -sL --max-time 60 "$PLAN_SRC" | tr -d '\r\n ')
+          if ! echo "$URL" | grep -Eq '^https://yamap\.com/plans/code/[A-Za-z0-9_-]+$'; then echo "計画URLが取れなかった"; exit 0; fi
+          echo "::add-mask::$URL"
+          python3 build.py "$URL" > /dev/null
+          if git diff --quiet -- docs; then echo "変更なし"; exit 0; fi
           git config user.name "yama-tenki-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet || git commit -m "計画を差し替え"
-          git push
+          git add docs && git commit -qm "計画を更新" && git push -q
