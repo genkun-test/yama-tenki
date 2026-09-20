@@ -1,0 +1,30 @@
+name: 計画を差し替える
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "YAMAP の計画URL（メール内の https://yamap.com/plans/code/...）"
+        required: true
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: build
+        env:
+          PLAN_URL: ${{ inputs.url }}
+        run: |
+          case "$PLAN_URL" in https://yamap.com/plans/*) ;; *) echo "YAMAP の計画URLではありません"; exit 1;; esac
+          python -X utf8 build.py "$PLAN_URL"
+      - name: commit
+        run: |
+          git config user.name "yama-tenki-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "計画を差し替え"
+          git push
