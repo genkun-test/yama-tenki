@@ -20,7 +20,12 @@ a{color:var(--acc)}
 #list{margin:8px 16px;display:flex;flex-direction:column;gap:8px}
 .mt{background:var(--card);border:1px solid var(--line);border-left:8px solid var(--line);border-radius:12px;padding:10px 12px;color:inherit;text-decoration:none;display:block}
 .mt.ok{border-left-color:var(--ok)}.mt.warn{border-left-color:var(--warn)}.mt.bad{border-left-color:var(--bad)}
-.mt .ph{display:block;width:100%;height:150px;object-fit:cover;border-radius:8px;margin-bottom:6px;background:var(--line)}
+.phs{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x mandatory;margin-bottom:6px;border-radius:8px}
+.phs img{flex:0 0 100%;width:100%;height:160px;object-fit:cover;border-radius:8px;scroll-snap-align:start;background:var(--line)}
+.phs img:not(:only-child){flex-basis:86%}
+.mt.bg{position:relative;overflow:hidden;isolation:isolate}
+.mt.bg::before{content:"";position:absolute;inset:0;background:var(--ph) center/cover;opacity:.22;z-index:-1}
+.mt .catch{font-size:15px}
 .mt .nm{font-weight:700;font-size:19px}
 .mt .nm small{font-weight:400;color:var(--sub);font-size:14px}
 .mt .best{font-weight:700;font-size:18px;margin:2px 0}
@@ -69,6 +74,10 @@ function plan(m,w){
 function km(a,b){const R=6371,r=Math.PI/180,dl=(b.lat-a.lat)*r,dn=(b.lon-a.lon)*r,x=Math.sin(dl/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function hm(h){const H=Math.floor(h),m=Math.round((h-H)*60/10)*10;return m===60?(H+1)+'時間':H+'時間'+(m?m+'分':'')}
 
+// 見せ方の比較用: ?v=b で写真をカードの薄い背景にする
+const VB=new URLSearchParams(location.search).get('v')==='b';
+function phs(m){if(!m.imgs.length)return '';
+  return '<div class="phs">'+m.imgs.map(u=>`<img src="${u}" alt="" loading="lazy" width="540" height="360" onerror="this.remove()">`).join('')+'</div>'}
 function render(){
   const today=new Date();today.setHours(0,0,0,0);const mon=today.getMonth();
   const rows=NEW.map((m,i)=>({m,p:WX&&WX[i]?plan(m,WX[i].hourly):null,d:HERE?km(HERE,m):null}));
@@ -82,9 +91,10 @@ function render(){
       strip='<div class="strip">'+p.lv.map((x,j)=>{const t=new Date(+today+j*864e5),we=t.getDay()%6===0;return `<i class="${x>=0?LV[x]:''}${we?' we':''}">${t.getDate()}</i>`}).join('')+'</div>'}
     const c=m.course,quiet=m.season&&m.season[mon]<2;
     const far=d!=null?`　ここから約${Math.round(d)}km（車で${hm(d*1.4/45)}ほど・目安）`:'';
-    return `<a class="mt ${cls}" href="https://yamap.com/mountains/${m.id}" target="_blank" rel="noopener">
-      ${m.img?`<img class="ph" src="${m.img}" alt="" loading="lazy" width="540" height="360" onerror="this.remove()">`:''}
+    return `<a class="mt ${cls}${VB&&m.imgs[0]?' bg':''}" style="${VB&&m.imgs[0]?`--ph:url(${m.imgs[0]})`:''}" href="https://yamap.com/mountains/${m.id}" target="_blank" rel="noopener">
+      ${VB?'':phs(m)}
       <div class="nm">${m.name} <small>${m.alt}m　${m.pref.join('・')}</small></div>
+      ${m.catch?`<div class="catch">${m.catch}</div>`:''}
       <div class="best">${best}</div>
       <div class="vals">${p&&p.multi?'⛺ ':''}歩く時間 ${hm(c.sec/3600)}　${c.km}km　登り${c.up}m${far}</div>
       <div class="vals">${c.name}</div>

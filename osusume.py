@@ -48,6 +48,25 @@ def climbed_mountains(user, cache):
     return count, len(acts)
 
 
+def photos(m, course):
+    """山の代表写真 + コースの写真。小サイズだけ、重複なしで4枚まで"""
+    ims = [m.get("primary_image")] + ((course or {}).get("images") or [])
+    urls = []
+    for im in ims:
+        u = (im or {}).get("small_url")
+        if u and u not in urls:
+            urls.append(u)
+    return urls[:4]
+
+
+def catch(course):
+    """コース名の「|」より後ろが、その山のひとこと紹介になっている"""
+    if not course:
+        return None
+    c = course.get("catchphrase") or (course["name"].split("|", 1) + [""])[1]
+    return c.strip() or None
+
+
 def slim(m, course, climbed):
     lon, lat = m["coord"]
     return {
@@ -58,7 +77,8 @@ def slim(m, course, climbed):
         "lon": round(lon, 4),
         "pref": [PREF.get(p["name"], p["name"]) for p in m.get("prefectures", [])][:2],
         "season": m.get("climber_statistics"),
-        "img": None if climbed else (m.get("primary_image") or {}).get("small_url"),
+        "imgs": [] if climbed else photos(m, course),
+        "catch": catch(course),
         "climbed": climbed,
         "course": course and {
             "id": course["id"],
