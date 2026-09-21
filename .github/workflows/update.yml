@@ -18,7 +18,8 @@ jobs:
           URL=$(curl -sL --max-time 60 "$PLAN_SRC" | tr -d '\r\n ')
           if ! echo "$URL" | grep -Eq '^https://yamap\.com/plans/code/[A-Za-z0-9_-]+$'; then echo "計画URLが取れなかった"; exit 0; fi
           echo "::add-mask::$URL"
-          python3 build.py "$URL" > /dev/null
+          # 取れなかった回は今のページを残して、次の時間にもう一度
+          if ! python3 build.py "$URL" > /dev/null; then echo "::warning::YAMAP から計画を取れなかった（次の時間に再試行）"; exit 0; fi
           if git diff --quiet -- docs; then echo "変更なし"; exit 0; fi
           git config user.name "yama-tenki-bot"
           git config user.email "bot@users.noreply.github.com"

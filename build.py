@@ -5,6 +5,8 @@
 import json
 import re
 import sys
+import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -16,7 +18,15 @@ MAX_POINTS = 14  # Open-Meteo 1回の呼び出しに載せる地点数
 
 def fetch_plan(url):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    html = urllib.request.urlopen(req, timeout=30).read().decode("utf8")
+    # GitHub Actions からだと YAMAP がときどき 403 を返す（2026-09-20、毎時13回中2回）
+    for wait in (5, 20, None):
+        try:
+            html = urllib.request.urlopen(req, timeout=30).read().decode("utf8")
+            break
+        except urllib.error.HTTPError:
+            if wait is None:
+                raise
+            time.sleep(wait)
     m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
     return json.loads(m.group(1))["props"]["pageProps"]["plan"]
 
