@@ -26,6 +26,7 @@ h1{font-size:20px;margin:0}
 #verdict small,#qv small{display:block;font-weight:400;font-size:15px}
 .ok{background:var(--okbg);color:#14532d}.warn{background:var(--warnbg);color:#7a4b00}.bad{background:var(--badbg);color:#7f1d1d}
 #map{height:52vh;min-height:300px;margin:0 16px;border-radius:12px;border:1px solid var(--line);z-index:0}
+[hidden]{display:none!important}
 #timebox{margin:8px 16px;display:flex;align-items:center;gap:10px}
 #timebox output{font-weight:700;font-size:20px;min-width:3.2em;font-variant-numeric:tabular-nums}
 #hour{flex:1;height:32px;accent-color:var(--acc)}
@@ -102,7 +103,7 @@ if(SEARCH){$('other').hidden=false;const u=new URLSearchParams(location.search);
     for(let d=1;d<=7;d++)for(let h=5;h<=17;h+=2)P.key.push({n:m.n,lat:m.lat,lon:m.lon,alt:m.alt==null?'':Math.round(m.alt),day:d,h,m:0})}
   const rest=hs.filter(x=>!m||x.lat!==m.lat||x.lon!==m.lon);
   if(rest.length){$('qhl').hidden=false;rest.forEach(x=>{const b=document.createElement('button');b.type='button';b.textContent=x.n+(x.pref?'（'+x.pref+'）':'');b.onclick=()=>go(x);$('qh').appendChild(b)})}}
-if(!P){$('ttl').textContent='山の天気をしらべる';$('stamp').textContent='山の名前を入れて「調べる」を押してください'}
+if(!P){$('ttl').textContent='山の天気をしらべる';$('stamp').textContent=''}
 if(!P)['days','here','map','timebox','list'].forEach(i=>$(i).hidden=true);
 // ---- ほかの山の天気（名前 → 場所 → 予報）
 const HOURLY='temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,wind_speed_700hPa';
