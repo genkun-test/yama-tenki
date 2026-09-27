@@ -54,7 +54,7 @@ def plan_id(url):
 
 def mark_stale(out):
     """新しい計画が YAMAP で開けないとき、前の計画のままだと分かるようにする。次に作り直せば消える"""
-    page = out / "index.html"
+    page = out / "keikaku.html"
     html = page.read_text(encoding="utf8")
     now = datetime.now(JST)
     note = (
@@ -71,6 +71,11 @@ def mark_stale(out):
         html = html.replace("<nav ", block + "\n<nav ", 1)
     page.write_text(html, encoding="utf8")
     print("お知らせを出した")
+
+
+def write_search(out):
+    """山をしらべるページ（計画なしのテンプレート）。入口の index.html"""
+    (out / "index.html").write_text((HERE / "template.html").read_text(encoding="utf8"), encoding="utf8")
 
 
 def main():
@@ -109,10 +114,11 @@ def main():
     html = (HERE / "template.html").read_text(encoding="utf8")
     html = html.replace("/*PLAN*/null", json.dumps(data, ensure_ascii=False, separators=(",", ":")))
     out.mkdir(parents=True, exist_ok=True)
-    (out / "index.html").write_text(html, encoding="utf8")
+    (out / "keikaku.html").write_text(html, encoding="utf8")
+    write_search(out)
     (out / "plan-id.txt").write_text(plan_id(url) + "\n", encoding="utf8")
     (out / "sw.js").write_text((HERE / "sw.js").read_text(encoding="utf8"), encoding="utf8")
-    print(f"OK {out / 'index.html'}  地点{len(data['key'])}/{len(cps)}  {data['start']}から{data['days']}日")
+    print(f"OK {out / 'keikaku.html'}  地点{len(data['key'])}/{len(cps)}  {data['start']}から{data['days']}日")
 
 
 if __name__ == "__main__":
