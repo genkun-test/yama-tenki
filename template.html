@@ -54,6 +54,11 @@ h1{font-size:20px;margin:0}
 #qc{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 #qc button{background:var(--card);color:var(--ink);text-align:left;font-weight:400}
 #qc button b{font-size:18px}
+#q{font-size:20px;padding:14px}#qf button{font-size:20px;padding:10px 18px}
+#qhl{margin:14px 0 6px;font-weight:700}
+#qh{display:flex;flex-wrap:wrap;gap:8px}
+#qh button{font:inherit;font-size:18px;padding:10px 14px;border:2px solid var(--acc);background:var(--card);color:var(--ink);border-radius:12px}
+header+#verdict{font-size:22px}
 #qmsg{color:var(--sub);font-size:15px;margin-top:6px}
 #qt{font-weight:700;font-size:18px;margin-top:10px}
 #qv{margin:6px 0}
@@ -65,8 +70,8 @@ footer{padding:0 16px 24px;color:var(--sub);font-size:13px}
 <nav id="tabs"><a href="./">山をしらべる</a><a href="osusume.html">つぎの山</a><a href="keikaku.html">登山計画</a></nav>
 <header><h1 id="ttl">山の天気マップ</h1><div id="stamp">読みこみ中…</div></header>
 <!--STALE--><!--/STALE-->
-<section id="other" hidden><form id="qf"><input id="q" type="search" placeholder="山の名前（例：塔ノ岳）" enterkeyhint="search" aria-label="山の名前"><button>調べる</button></form>
-<div id="qmsg"></div><div id="qc"></div></section>
+<section id="other" hidden><h2 id="qh2">山の名前を入れてください</h2><form id="qf"><input id="q" type="search" placeholder="山の名前（例：塔ノ岳）" enterkeyhint="search" aria-label="山の名前"><button>調べる</button></form>
+<div id="qmsg"></div><div id="qc"></div><p id="qhl" hidden>前に調べた山（押すとすぐ出ます）</p><div id="qh"></div></section>
 <div id="days"></div>
 <div id="eta" hidden></div>
 <div id="verdict" class="ok" hidden></div>
@@ -89,9 +94,14 @@ const SEARCH=!P;
 if(SEARCH){$('other').hidden=false;const u=new URLSearchParams(location.search);let m=null;
   if(u.get('lat'))m={n:u.get('n'),pref:u.get('pref')||'',lat:+u.get('lat'),lon:+u.get('lon'),alt:u.get('alt')?+u.get('alt'):null};
   else try{m=JSON.parse(localStorage.getItem('last:mt'))}catch(e){}
+  let hs=[];try{hs=JSON.parse(localStorage.getItem('hist:mt'))||[]}catch(e){}
   if(m){try{localStorage.setItem('last:mt',JSON.stringify(m))}catch(e){}
+    hs=[m,...hs.filter(x=>x.lat!==m.lat||x.lon!==m.lon)].slice(0,6);try{localStorage.setItem('hist:mt',JSON.stringify(hs))}catch(e){}
+    $('qh2').textContent='ほかの山をしらべる';$('list').after($('other'));document.querySelector('header').after($('verdict'));
     P={one:m,area:m.n,start:todayIso,days:7,route:[[m.lat,m.lon]],all:[],key:[]};
-    for(let d=1;d<=7;d++)for(let h=5;h<=17;h+=2)P.key.push({n:m.n,lat:m.lat,lon:m.lon,alt:m.alt==null?'':Math.round(m.alt),day:d,h,m:0})}}
+    for(let d=1;d<=7;d++)for(let h=5;h<=17;h+=2)P.key.push({n:m.n,lat:m.lat,lon:m.lon,alt:m.alt==null?'':Math.round(m.alt),day:d,h,m:0})}
+  const rest=hs.filter(x=>!m||x.lat!==m.lat||x.lon!==m.lon);
+  if(rest.length){$('qhl').hidden=false;rest.forEach(x=>{const b=document.createElement('button');b.type='button';b.textContent=x.n+(x.pref?'（'+x.pref+'）':'');b.onclick=()=>go(x);$('qh').appendChild(b)})}}
 if(!P){$('ttl').textContent='山の天気をしらべる';$('stamp').textContent='山の名前を入れて「調べる」を押してください'}
 if(!P)['days','here','map','timebox','list'].forEach(i=>$(i).hidden=true);
 // ---- ほかの山の天気（名前 → 場所 → 予報）
