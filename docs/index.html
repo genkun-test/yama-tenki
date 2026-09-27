@@ -15,13 +15,14 @@ header{padding:12px 16px 6px}
 h1{font-size:20px;margin:0}
 #stamp{font-size:14px;color:var(--sub)}
 #stamp.off{color:var(--bad);font-weight:700}
-#days{display:flex;gap:6px;padding:6px 16px;overflow-x:auto}
-#days button{flex:1 0 auto;min-width:64px;border:2px solid var(--line);background:var(--card);border-radius:12px;padding:6px 8px;font:inherit;font-size:14px;color:var(--ink);line-height:1.25}
-#days button b{display:block;font-size:22px}
-#days button.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
-#days button.ok{background:var(--okbg)}#days button.warn{background:var(--warnbg)}#days button.bad{background:var(--badbg)}
-#verdict{margin:6px 16px;padding:10px 14px;border-radius:12px;font-weight:700;font-size:18px}
-#verdict small{display:block;font-weight:400;font-size:15px}
+#days,#qdays{display:flex;gap:6px;padding:6px 16px;overflow-x:auto}
+#qdays{padding:6px 0}
+#days button,#qdays button{flex:1 0 auto;min-width:64px;border:2px solid var(--line);background:var(--card);border-radius:12px;padding:6px 8px;font:inherit;font-size:14px;color:var(--ink);line-height:1.25}
+#days button b,#qdays button b{display:block;font-size:22px}
+#days button.sel,#qdays button.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+#days button.ok,#qdays button.ok{background:var(--okbg)}#days button.warn,#qdays button.warn{background:var(--warnbg)}#days button.bad,#qdays button.bad{background:var(--badbg)}
+#verdict,#qv{margin:6px 16px;padding:10px 14px;border-radius:12px;font-weight:700;font-size:18px}
+#verdict small,#qv small{display:block;font-weight:400;font-size:15px}
 .ok{background:var(--okbg);color:#14532d}.warn{background:var(--warnbg);color:#7a4b00}.bad{background:var(--badbg);color:#7f1d1d}
 #map{height:52vh;min-height:300px;margin:0 16px;border-radius:12px;border:1px solid var(--line);z-index:0}
 #timebox{margin:8px 16px;display:flex;align-items:center;gap:10px}
@@ -44,6 +45,18 @@ h1{font-size:20px;margin:0}
 #eta small{display:block;font-weight:400;font-size:14px}
 .row .tm s{color:var(--sub)}
 .row .tm b{color:#1a5fc4;font-size:16px}
+#other{margin:8px 16px 24px}
+#other h2{font-size:19px;margin:0 0 6px}
+#qf{display:flex;gap:6px}
+#q{flex:1;min-width:0;font:inherit;padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink)}
+#qf button,#qc button{font:inherit;font-weight:700;border:2px solid var(--acc);background:var(--acc);color:#fff;border-radius:12px;padding:8px 14px}
+#qc{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+#qc button{background:var(--card);color:var(--ink);text-align:left;font-weight:400}
+#qc button b{font-size:18px}
+#qmsg{color:var(--sub);font-size:15px;margin-top:6px}
+#qt{font-weight:700;font-size:18px;margin-top:10px}
+#qv{margin:6px 0}
+#qlist{display:flex;flex-direction:column;gap:8px}
 footer{padding:0 16px 24px;color:var(--sub);font-size:13px}
 </style>
 </head>
@@ -58,6 +71,9 @@ footer{padding:0 16px 24px;color:var(--sub);font-size:13px}
 <div id="map"></div>
 <div id="timebox"><output id="hv">9時</output><input id="hour" type="range" min="0" max="23" value="9" aria-label="時刻"></div>
 <div id="list"></div>
+<section id="other"><h2>ほかの山の天気</h2>
+<form id="qf"><input id="q" type="search" placeholder="山の名前（例：塔ノ岳）" enterkeyhint="search" aria-label="山の名前"><button>調べる</button></form>
+<div id="qmsg"></div><div id="qc"></div><div id="qt"></div><div id="qdays"></div><div id="qv" hidden></div><div id="qlist"></div></section>
 <footer>天気は Open-Meteo の予報（標高補正つき）。風は標高2300m以上の地点では上空約3000mの風を表示。山の天気は急変します。数字は目安で、現地の空と小屋の情報を優先してください。地図: 国土地理院</footer>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
@@ -134,9 +150,10 @@ const hm=t=>Math.floor(t/60)+':'+String(Math.round(t%60)).padStart(2,'0');
 // ---- 天気の値を取り出す
 function at(i,day,h){
   if(!WX||!WX[i])return null;
-  const H=WX[i].hourly,k=H.time.indexOf(iso(dateOf(day))+'T'+String(h).padStart(2,'0')+':00');
+  const H=WX[i].hourly;return val(H,H.time.indexOf(iso(dateOf(day))+'T'+String(h).padStart(2,'0')+':00'),P.key[i].alt)}
+function val(H,k,alt){
   if(k<0||H.temperature_2m[k]==null)return null;
-  const hi=P.key[i].alt>=2300&&H.wind_speed_700hPa[k]!=null;
+  const hi=alt>=2300&&H.wind_speed_700hPa[k]!=null;
   const wind=hi?H.wind_speed_700hPa[k]:H.wind_speed_10m[k];
   const o={t:H.temperature_2m[k],feel:H.apparent_temperature[k],code:H.weather_code[k],rain:H.precipitation[k]||0,pop:H.precipitation_probability[k],wind:wind,gust:H.wind_gusts_10m[k]};
   o.lv=(o.wind>=15||o.rain>=5||o.code>=95)?2:(o.wind>=10||o.rain>=1||o.feel<=0)?1:0;
@@ -145,11 +162,16 @@ function at(i,day,h){
 const LV=['ok','warn','bad'];
 function dayLevel(day){
   let lv=-1,why=new Set();
-  P.key.forEach((p,i)=>{if(p.day!==day)return;for(let h=4;h<=17;h++){const o=at(i,day,h);if(!o)continue;lv=Math.max(lv,o.lv);
-    if(o.code>=95)why.add('雷');if(o.wind>=15)why.add('強風');else if(o.wind>=10)why.add('風やや強い');
-    if(o.rain>=5)why.add('強い雨');else if(o.rain>=1)why.add('雨');if(o.feel<=0)why.add('体感0℃以下')}});
+  P.key.forEach((p,i)=>{if(p.day!==day)return;for(let h=4;h<=17;h++)lv=addWhy(at(i,day,h),lv,why)});
   return{lv,why:[...why]};
 }
+function addWhy(o,lv,why){if(!o)return lv;
+  if(o.code>=95)why.add('雷');if(o.wind>=15)why.add('強風');else if(o.wind>=10)why.add('風やや強い');
+  if(o.rain>=5)why.add('強い雨');else if(o.rain>=1)why.add('雨');if(o.feel<=0)why.add('体感0℃以下');
+  return Math.max(lv,o.lv)}
+const VERD=['おだやかな見込み','注意して行動','荒れる見込み・無理しない'];
+function valsHtml(o){const c=CODE(o.code),wc=o.wind>=15?'d':o.wind>=10?'w':'',rc=o.rain>=5?'d':o.rain>=1?'w':'';
+  return `${c[1]}　${Math.round(o.t)}℃（体感${Math.round(o.feel)}℃）　風 <b class="${wc}">${Math.round(o.wind)}m/s</b>　雨 <b class="${rc}">${o.rain.toFixed(1)}mm</b>${o.pop!=null?' '+o.pop+'%':''}`}
 
 // ---- 描画
 function render(){
@@ -163,7 +185,7 @@ function render(){
   // ひとこと判定
   const v=$('verdict'),dl=dayLevel(selDay);v.hidden=false;
   if(dl.lv<0){v.className='warn';v.innerHTML='この日の予報はまだ出ていません<small>予報は16日先まで。近づくと表示されます</small>'}
-  else{v.className=LV[dl.lv];v.innerHTML=['おだやかな見込み','注意して行動','荒れる見込み・無理しない'][dl.lv]+`<small>${dl.why.join('・')||'日中（4〜17時）に大きな崩れなし'}</small>`}
+  else{v.className=LV[dl.lv];v.innerHTML=VERD[dl.lv]+`<small>${dl.why.join('・')||'日中（4〜17時）に大きな崩れなし'}</small>`}
   // 地図のピン
   pins.forEach(m=>m.remove());pins=[];
   P.key.forEach((p,i)=>{const o=at(i,selDay,h),c=o?CODE(o.code):['・',''];
@@ -175,10 +197,10 @@ function render(){
   P.key.forEach((p,i)=>{if(p.day!==selDay)return;const pm=p.h*60+p.m,sh=delay!=null&&etaDay===selDay&&pm>=etaFrom&&Math.abs(delay)>=10,em=Math.max(0,Math.min(1439,pm+(sh?delay:0)));
     const o=at(i,selDay,Math.floor(em/60)),r=document.createElement('div');const tmH=sh?`<s>${hm(pm)}</s> → <b>${hm(em)}ごろ</b>`:`${hm(pm)}ごろ`;
     if(!o){r.className='row';r.innerHTML=`<span class="ic">・</span><span class="nm">${p.n}</span><span class="tm">${p.h}:${String(p.m).padStart(2,'0')}</span><span class="vals">予報なし</span>`}
-    else{const c=CODE(o.code),wc=o.wind>=15?'d':o.wind>=10?'w':'',rc=o.rain>=5?'d':o.rain>=1?'w':'';
+    else{const c=CODE(o.code);
       r.className='row '+LV[o.lv];
       r.innerHTML=`<span class="ic">${c[0]}</span><span class="nm">${p.sleep?'⛺ ':''}${p.n} <small>${p.alt}m</small></span><span class="tm">${tmH}</span>
-      <span class="vals">${c[1]}　${Math.round(o.t)}℃（体感${Math.round(o.feel)}℃）　風 <b class="${wc}">${Math.round(o.wind)}m/s</b>　雨 <b class="${rc}">${o.rain.toFixed(1)}mm</b>${o.pop!=null?' '+o.pop+'%':''}</span>`}
+      <span class="vals">${valsHtml(o)}</span>`}
     list.appendChild(r)});
 }
 function focusDay(){const pts=P.all.filter(p=>p.day===selDay).map(p=>[p.lat,p.lon]);if(pts.length)map.fitBounds(pts,{padding:[40,40],maxZoom:13,animate:false})}
@@ -200,6 +222,56 @@ async function load(){
     stamp(t,false)}catch(err){if(saved)stamp(saved.t,true);else $('stamp').textContent='電波がなく、予報を取れませんでした';}
   render();
 }
+
+// ---- ほかの山の天気（名前 → 場所 → 予報）
+const HOURLY='temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,wind_speed_700hPa';
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MT=/^(MT|MTS|PK|PKS|HLL|HLLS|VLC|RDGE|PASS|SPUR|UPLD)$/;
+let Q=null,qDay=0;
+async function geo(q){
+  let r=[];
+  try{const d=await(await fetch('https://geocoding-api.open-meteo.com/v1/search?count=20&language=ja&name='+encodeURIComponent(q))).json();
+    r=(d.results||[]).filter(x=>x.country_code==='JP');const m=r.filter(x=>MT.test(x.feature_code));if(m.length)r=m;
+    r=r.map(x=>({n:x.name,pref:x.admin1||'',lat:x.latitude,lon:x.longitude,alt:x.elevation}))}catch(e){}
+  if(!r.length)try{const d=await(await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q='+encodeURIComponent(q))).json();
+    r=d.slice(0,8).map(x=>({n:x.properties.title,pref:'',lat:x.geometry.coordinates[1],lon:x.geometry.coordinates[0],alt:null}))}catch(e){}
+  return r}
+const qName=p=>p.n+(p.pref||p.alt?'（'+[p.pref,p.alt?Math.round(p.alt)+'m':''].filter(Boolean).join('・')+'）':'');
+$('qf').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;
+  $('qc').innerHTML='';$('qmsg').textContent='さがしています…';$('q').blur();
+  const r=await geo(q);
+  if(!r.length){$('qmsg').textContent=navigator.onLine===false?'電波がなく、さがせませんでした':'「'+q+'」は見つかりませんでした。漢字で入れてみてください';return}
+  if(r.length===1){$('qmsg').textContent='';qPick(r[0]);return}
+  $('qmsg').textContent='どの山ですか？';
+  r.forEach(p=>{const b=document.createElement('button');b.type='button';
+    b.innerHTML='<b>'+esc(p.n)+'</b> '+esc(qName(p).slice(p.n.length));b.onclick=()=>{$('qc').innerHTML='';$('qmsg').textContent='';qPick(p)};$('qc').appendChild(b)})};
+async function qPick(p){
+  $('qt').textContent=qName(p)+'　読みこみ中…';
+  const q='https://api.open-meteo.com/v1/forecast?latitude='+p.lat+'&longitude='+p.lon+(p.alt!=null?'&elevation='+p.alt:'')+
+    '&hourly='+HOURLY+'&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7';
+  try{const r=await fetch(q);if(!r.ok)throw 0;Q={p,t:Date.now(),d:await r.json()};qDay=0;
+    try{localStorage.setItem('wx:other',JSON.stringify(Q))}catch(e){}
+    qRender()}catch(e){$('qt').textContent=qName(p)+'　電波がなく、予報を取れませんでした'}}
+function qRender(){if(!Q)return;
+  const H=Q.d.hourly,alt=Q.p.alt||Q.d.elevation,t=new Date(Q.t);
+  const days=[...new Set(H.time.map(x=>x.slice(0,10)))];if(qDay>=days.length)qDay=0;
+  const lvOf=ds=>{let lv=-1,why=new Set();for(let h=4;h<=17;h++)lv=addWhy(val(H,H.time.indexOf(ds+'T'+String(h).padStart(2,'0')+':00'),alt),lv,why);return{lv,why:[...why]}};
+  $('qt').innerHTML=esc(qName(Q.p))+`<br><small style="font-weight:400;color:var(--sub);font-size:14px">${t.getMonth()+1}/${t.getDate()} ${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')} に取った予報</small>`;
+  $('qdays').innerHTML='';
+  days.forEach((ds,i)=>{const d=new Date(ds+'T00:00:00+09:00'),b=document.createElement('button'),L_=lvOf(ds);
+    b.className=(L_.lv>=0?LV[L_.lv]:'')+(i===qDay?' sel':'');
+    b.innerHTML=`${ds===todayIso?'今日':i===1&&days[0]===todayIso?'明日':'&nbsp;'}<b>${d.getMonth()+1}/${d.getDate()}</b>${WK[d.getDay()]}`;
+    b.onclick=()=>{qDay=i;qRender()};$('qdays').appendChild(b)});
+  const ds=days[qDay],dl=lvOf(ds),v=$('qv');v.hidden=false;
+  if(dl.lv<0){v.className='warn';v.textContent='この日の予報はありません'}
+  else{v.className=LV[dl.lv];v.innerHTML=VERD[dl.lv]+`<small>${dl.why.join('・')||'日中（4〜17時）に大きな崩れなし'}</small>`}
+  const list=$('qlist');list.innerHTML='';
+  [5,7,9,11,13,15,17].forEach(h=>{const o=val(H,H.time.indexOf(ds+'T'+String(h).padStart(2,'0')+':00'),alt),r=document.createElement('div');
+    if(!o){r.className='row';r.innerHTML=`<span class="ic">・</span><span class="nm">${h}時</span><span class="tm"></span><span class="vals">予報なし</span>`}
+    else{r.className='row '+LV[o.lv];r.innerHTML=`<span class="ic">${CODE(o.code)[0]}</span><span class="nm">${h}時</span><span class="tm"></span><span class="vals">${valsHtml(o)}</span>`}
+    list.appendChild(r)})}
+try{Q=JSON.parse(localStorage.getItem('wx:other'));if(Q){$('q').value=Q.p.n;qRender()}}catch(e){Q=null}
+
 render();focusDay();load();
 if(SIM[1]){const ll=[+SIM[0],+SIM[1]];L.circleMarker(ll,{radius:9,color:'#fff',weight:3,fillColor:'#1a73e8',fillOpacity:1}).addTo(map);for(let d=1;d<=P.days;d++)if(iso(dateOf(d))===iso(NOW()))selDay=d;updateEta(ll);focusDay()}
 setTimeout(()=>{map.invalidateSize();focusDay()},300);
