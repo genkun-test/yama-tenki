@@ -111,19 +111,22 @@ const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const MT=/^(MT|MTS|PK|PKS|HLL|HLLS|VLC|RDGE|PASS|SPUR|UPLD)$/;
 async function geo(q){
   let r=[];
-  try{const d=await(await fetch('https://geocoding-api.open-meteo.com/v1/search?count=20&language=ja&name='+encodeURIComponent(q))).json();
+  // OpenStreetMap の山頂が一番そろっている（同名の山を県・市町村つきで全部返す）
+  try{const d=await(await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=jp&limit=20&accept-language=ja&addressdetails=1&extratags=1&q='+encodeURIComponent(q))).json();
+    r=d.filter(x=>x.category==='natural'&&/peak|volcano|hill|ridge/.test(x.type)).map(x=>{const a=x.address||{},t=x.extratags||{};
+      return {n:x.name||q,pref:a.province||a.state||'',city:a.city||a.town||a.village||'',lat:+x.lat,lon:+x.lon,alt:parseFloat(t.ele)||null}})}catch(e){}
+  if(!r.length)try{const d=await(await fetch('https://geocoding-api.open-meteo.com/v1/search?count=20&language=ja&name='+encodeURIComponent(q))).json();
     r=(d.results||[]).filter(x=>x.country_code==='JP');const m=r.filter(x=>MT.test(x.feature_code));if(m.length)r=m;
     r=r.map(x=>({n:x.name,pref:x.admin1||'',lat:x.latitude,lon:x.longitude,alt:x.elevation}))}catch(e){}
   if(!r.length)try{const d=await(await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q='+encodeURIComponent(q))).json();
     r=d.slice(0,8).map(x=>({n:x.properties.title,pref:'',lat:x.geometry.coordinates[1],lon:x.geometry.coordinates[0],alt:null}))}catch(e){}
   return r}
-const qName=p=>p.n+(p.pref||p.alt?'（'+[p.pref,p.alt?Math.round(p.alt)+'m':''].filter(Boolean).join('・')+'）':'');
+const qName=p=>p.n+(p.pref||p.alt?'（'+[(p.pref||'')+(p.city||''),p.alt?Math.round(p.alt)+'m':''].filter(Boolean).join('・')+'）':'');
 $('qf').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;
   $('qc').innerHTML='';$('qmsg').textContent='さがしています…';$('q').blur();
   const r=await geo(q);
   if(!r.length){$('qmsg').textContent=navigator.onLine===false?'電波がなく、さがせませんでした':'「'+q+'」は見つかりませんでした。漢字で入れてみてください';return}
-  if(r.length===1)return go(r[0]);
-  $('qmsg').textContent='どの山ですか？';
+  $('qmsg').textContent=r.length>1?'同じ名前の山が'+r.length+'か所あります。どの山ですか？':'この山でよければ押してください';
   r.forEach(p=>{const b=document.createElement('button');b.type='button';
     b.innerHTML='<b>'+esc(p.n)+'</b> '+esc(qName(p).slice(p.n.length));b.onclick=()=>go(p);$('qc').appendChild(b)})};
 function go(p){location.href='./?'+new URLSearchParams({n:p.n,pref:p.pref,lat:p.lat,lon:p.lon,alt:p.alt==null?'':p.alt})}
